@@ -23,14 +23,33 @@ def get_place_details(api_key, place_id):
 
     if data['status'] == 'OK':
         place = data['result']
-        name = place['name']
-        address = place.get('formatted_address', 'No address available')
+        rating = place.get('rating', 'No rating')
+        user_ratings_total = place.get('user_ratings_total', 0)
 
-        return name, address
+        return rating, user_ratings_total
+    else:
+        return None, 0
+
+def get_junta_de_freguesia(api_key, lat, lng):
+    # Montar a URL para a API de Geocoding
+    url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&key={api_key}"
+    
+    # Fazer a requisição
+    response = requests.get(url)
+    data = response.json()
+
+    if response.status_code == 200 and data['status'] == 'OK':
+        # Iterar pelos componentes do endereço
+        for result in data['results']:
+            for component in result['address_components']:
+                if 'administrative_area_level_3' in component['types']:
+                    freguesia = component['long_name']
+                    
+        return freguesia
     else:
         return None, None
 
-def get_businesses(api_key, address, radius):
+def get_businesses(api_key, address, radius):   
     lat, lng = get_coordinates_from_address(address, api_key)
     
     if lat is None or lng is None:
@@ -38,7 +57,6 @@ def get_businesses(api_key, address, radius):
 
     location = f"{lat},{lng}"
 
-    # Construct the Places API URL with location, radius, and optional keyword
     url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={location}&radius={radius}&key={api_key}"
     response = requests.get(url)
     data = response.json()
@@ -46,21 +64,21 @@ def get_businesses(api_key, address, radius):
     places = []
     while response.status_code == 200 and data['status'] == 'OK':
         print(f"\nNumber of results returned: {len(data['results'])}")
-        for place in data['results']:
+        for i, place in enumerate(data['results']):
+            print(i)
             place_id = place['place_id']
-            name, address = get_place_details(api_key, place_id)
-            print("dsadas")
-            if name:
-                lat = place['geometry']['location']['lat']
-                lng = place['geometry']['location']['lng']
-                places.append({
-                    'Name': name,
-                    'Address': address,
-                    'Latitude': place['geometry']['location']['lat'],
-                    'Longitude': place['geometry']['location']['lng'],
-                    'First Type': place.get('types', [])[0]
-                })
-        
+            rating, user_ratings_total = get_place_details(api_key, place_id)
+
+            places.append({
+                'Place ID': place_id,
+                'Name': place['name'],
+                'Latitude': place['geometry']['location']['lat'],
+                'Longitude': place['geometry']['location']['lng'],
+                'Type': place.get('types', []),
+                'Rating': rating,
+                'Reviews': user_ratings_total
+            })
+
         if 'next_page_token' in data:
             next_page_token = data['next_page_token']
             time.sleep(2)
@@ -75,17 +93,33 @@ def get_businesses(api_key, address, radius):
     df = pd.DataFrame(places)
     return df
 
+def main(api_key):
+
+    address = input("Endereço: ")
+    if address == "":
+        address = "Avenida Rovisco Pais 1, Lisbon"
+
+    radius = 0
+    try:
+        radius = int(input("Raio: "))
+    except ValueError:
+        radius = 1000
+
+    df = get_businesses(api_key, address, radius)
+    print(df.iloc[:, 1:])
+
+    freguesias = []
+    for _, row in df.iterrows():
+        freguesia = get_junta_de_freguesia(api_key, row['Latitude'], row['Longitude'])
+        print(freguesia)
+        freguesias.append(freguesia)
+    df.insert(7, 'Freguesias', freguesias)
+
+    # df.to_csv('businesses.csv', index=False)
+    df.to_csv('businesses.csv', mode='a', header=not pd.io.common.file_exists('businesses.csv'), index=False)
+    df = pd.read_csv('businesses.csv')
+    df = df.drop_duplicates(subset=['Place ID'])
+    df.to_csv('businesses.csv', index=False)
+
 api_key = "AIzaSyBaMemUQHCLGIPsjckQlRs1Hi6EQiZaag0"
-
-address = input("Endereço: ")
-if address == "":
-    address = "Avenida Rovisco Pais 1, Lisbon"
-
-radius = 0
-try:
-    radius = int(input("Raio: "))
-except ValueError:
-    radius = 1000
-
-df = get_businesses(api_key, address, radius)
-print(df)
+main(api_key)
