@@ -2,6 +2,7 @@ import requests
 import time
 import pandas as pd
 import math
+import csv
 
 def get_coordinates_from_address(address, api_key):
     geocode_url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
@@ -72,6 +73,13 @@ def generate_circles(center, outer_radius, circle_radius):
                 points.append([new_lat, new_lon])
 
     return points
+
+def create_header(file):
+    fieldnames = ['Place ID', 'Name', 'Latitude', 'Longitude', 'Type', 'Rating', 'Reviews', 'Freguesia']
+
+    with open('businesses.csv', mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
     
 def save_data(file, data):
     df = pd.DataFrame(data)
@@ -149,6 +157,7 @@ def main(api_key):
     if address == "":
         address = "default"
 
+    create_header('businesses.csv')
     places = get_businesses(api_key, address, 'businesses.csv')
 
 api_key = "AIzaSyBaMemUQHCLGIPsjckQlRs1Hi6EQiZaag0"
