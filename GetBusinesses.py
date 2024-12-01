@@ -77,32 +77,22 @@ def generate_circles(center, outer_radius, circle_radius):
 def create_header(file):
     fieldnames = ['Place ID', 'Name', 'Latitude', 'Longitude', 'Type', 'Rating', 'Reviews', 'Freguesia']
 
-    with open('businesses.csv', mode='w', newline='', encoding='utf-8') as file:
+    with open(file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
     
 def save_data(file, data):
     df = pd.DataFrame(data)
-    df.to_csv('businesses.csv', mode='a', header=not pd.io.common.file_exists('businesses.csv'), index=False)
-    df = pd.read_csv('businesses.csv')
-    df = df.drop_duplicates(subset=['Place ID'])
-    freguesias = []
-    for _, row in df.iterrows():
-        freguesia = get_junta_de_freguesia(api_key, row['Latitude'], row['Longitude'])
-        # print(freguesia)
-        freguesias.append(freguesia)
+    df.to_csv(file, mode='a', header=not pd.io.common.file_exists(file), index=False)
 
-    df['Freguesia'] = freguesias
-    df.to_csv('businesses.csv', index=False)
-
-def get_businesses(api_key, address, file):
+def get_businesses(api_key, address, file, update_every, inner_radius):
     if address == "default":
         lat, lng = 38.755283, -9.164438
     else:
         lat, lng = get_coordinates_from_address(address, api_key)
         if lat is None or lng is None:
             return
-    inner_radius = 20
+
     points = generate_circles([lat, lng], 6000, inner_radius)
     # points = [[lat, lng]]
     while True:
@@ -110,8 +100,10 @@ def get_businesses(api_key, address, file):
             places = []
             size = len(points)
             for i, lat_lng in enumerate(points):
+                if i < 200:
+                    continue
                 print(f"Progress: {i}/{size}")
-                if i % 1000 == 0 and i != 0:
+                if i % update_every == 0 and i != 0:
                     save_data(file, places)
                     places = []
 
@@ -157,9 +149,22 @@ def main(api_key):
     address = input("Endereço: ")
     if address == "":
         address = "default"
+    file = 'businesses.csv'
+    # create_header(file)
+    update_every = 100
+    inner_radius = 80
+    get_businesses(api_key, address, file, update_every, inner_radius)
+    
+    df = pd.read_csv(file)
+    df = df.drop_duplicates(subset=['Place ID'])
+    freguesias = []
+    for _, row in df.iterrows():
+        freguesia = get_junta_de_freguesia(api_key, row['Latitude'], row['Longitude'])
+        # print(freguesia)
+        freguesias.append(freguesia)
 
-    # create_header('businesses.csv')
-    places = get_businesses(api_key, address, 'businesses.csv')
+    df['Freguesia'] = freguesias
+    df.to_csv(file, index=False)
 
 api_key = "AIzaSyBaMemUQHCLGIPsjckQlRs1Hi6EQiZaag0"
 main(api_key)
