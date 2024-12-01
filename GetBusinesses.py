@@ -91,7 +91,8 @@ def save_data(file, data):
         freguesia = get_junta_de_freguesia(api_key, row['Latitude'], row['Longitude'])
         # print(freguesia)
         freguesias.append(freguesia)
-    df.insert(7, 'Freguesia', freguesias)
+
+    df['Freguesia'] = freguesias
     df.to_csv('businesses.csv', index=False)
 
 def get_businesses(api_key, address, file):
@@ -157,7 +158,7 @@ def main(api_key):
     if address == "":
         address = "default"
 
-    create_header('businesses.csv')
+    # create_header('businesses.csv')
     places = get_businesses(api_key, address, 'businesses.csv')
 
 api_key = "AIzaSyBaMemUQHCLGIPsjckQlRs1Hi6EQiZaag0"
